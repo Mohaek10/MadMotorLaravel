@@ -1,0 +1,95 @@
+services:
+    laravel.test:
+        build:
+            context: ./vendor/laravel/sail/runtimes/8.3
+            dockerfile: Dockerfile
+            args:
+                WWWGROUP: '${WWWGROUP}'
+        image: sail-8.3/app
+        extra_hosts:
+            - 'host.docker.internal:host-gateway'
+        ports:
+            - '${APP_PORT:-80}:80'
+            - '${VITE_PORT:-5173}:${VITE_PORT:-5173}'
+        environment:
+            WWWUSER: '${WWWUSER}'
+            LARAVEL_SAIL: 1
+            XDEBUG_MODE: '${SAIL_XDEBUG_MODE:-off}'
+            XDEBUG_CONFIG: '${SAIL_XDEBUG_CONFIG:-client_host=host.docker.internal}'
+            IGNITION_LOCAL_SITES_PATH: '${PWD}'
+        volumes:
+            - '.:/var/www/html'
+        networks:
+            - sail
+        depends_on:
+            - pgsql
+    pgsql:
+        image: 'postgres:15'
+        ports:
+            - '${FORWARD_DB_PORT:-5432}:5432'
+        environment:
+            PGPASSWORD: '${DB_PASSWORD:-secret}'
+            POSTGRES_DB: '${DB_DATABASE}'
+            POSTGRES_USER: '${DB_USERNAME}'
+            POSTGRES_PASSWORD: '${DB_PASSWORD:-secret}'
+        volumes:
+            - 'sail-pgsql:/var/lib/postgresql/data'
+            - './vendor/laravel/sail/database/pgsql/create-testing-database.sql:/docker-entrypoint-initdb.d/10-create-testing-database.sql'
+        networks:
+            - sail
+        healthcheck:
+            test:
+                - CMD
+                - pg_isready
+                - '-q'
+                - '-d'
+                - '${DB_DATABASE}'
+                - '-U'
+                - '${DB_USERNAME}'
+            retries: 3
+            timeout: 5s
+
+    adminer-postgres:
+        image: adminer:latest
+        env_file:
+            -   .env
+        ports:
+            - 8080:8080
+        networks:
+            - sail
+#    mongo:
+#        image: 'mongo:5'
+#        ports:
+#            - '${MONGO_PORT:-27017}:27017'
+#        environment:
+#            MONGO_INITDB_DATABASE: '${DB_DATABASE}'
+#            MONGO_INITDB_ROOT_USERNAME: '${DB_USERNAME}'
+#            MONGO_INITDB_ROOT_PASSWORD: '${DB_PASSWORD:-secret}'
+#        volumes:
+#            - 'sail-mongo:/data/db'
+#            - './vendor/laravel/sail/database/mongo/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js'
+#        networks:
+#            - sail
+#        healthcheck:
+#            test: echo 'db.runCommand("ping").ok' | mongo ${DB_DATABASE} --quiet
+#            retries: 3
+#            timeout: 5s
+#    mongo-express:
+#       image: 'mongo-express'
+#        ports:
+#            - 8081:8081
+#        environment:
+#            ME_CONFIG_MONGODB_SERVER: 'mongo'
+#            ME_CONFIG_MONGODB_ENABLE_ADMIN: 'true'
+#            ME_CONFIG_MONGODB_ADMINUSERNAME: '${DB_USERNAME}'
+#            ME_CONFIG_MONGODB_ADMINPASSWORD: '${DB_PASSWORD:-secret}'
+#        networks:
+#            - sail
+networks:
+    sail:
+        driver: bridge
+volumes:
+    sail-pgsql:
+        driver: local
+#    sail-mongo:
+#        driver: local
